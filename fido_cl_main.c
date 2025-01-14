@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
     int ret = 0;
 
     hid_device *handle = NULL;
+    fido_device_info_t dev_info;
     fido_hid_info_t hid_info;
 
     if((ret = fido_hid_init()) != 0) {
@@ -40,10 +41,14 @@ int main(int argc, char *argv[])
 
 
     hid_info.handle = handle;
+    hid_info.dev_info = &dev_info;
 
     printf("assigned handle id : %p\n", hid_info.handle);
 
     fido_hid_info((void *)&hid_info);
+
+    dev_info.handle = handle;
+    fido_dev_ctapinit((void *)&dev_info);
 
 endret:
 

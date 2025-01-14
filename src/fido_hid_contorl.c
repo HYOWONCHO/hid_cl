@@ -19,6 +19,89 @@
 
 static bool gn_hidstatus = true;
 
+
+int fido_dev_ctapinit(void *handle)
+{
+    int ret = 0;
+    uint8_t buf[65] = {0, };
+    uint8_t nonce[8] = {0, };
+
+    uint8_t *resp = NULL;   // response 
+    uint8_t *respd = NULL;  // response data
+    uint8_t *req = NULL;    // request
+                            //
+    fido_device_info_t *h_info;
+    hid_device *h_hid;
+
+
+    h_info = (fido_hid_info_t *)handle;
+    h_hid = (hid_device *)h_info->handle;
+
+    // generate nonce 
+    srand((uint32_t)time(NULL));
+    for( int x = 0; x < 8; x++ ) {
+        nonce[x] = (uint8_t)rand();
+    }
+
+    req = &buf[1];
+    memset(&req[0], 0xFF, 4);
+    req[4] = 0x86;
+    req[5] = 0;
+    req[6] = 8;
+    memcpy(&req[7], nonce, 8);
+
+
+    ret = hid_write(h_hid, buf, 65);
+    if(ret <= 0) {
+        fprintf(stderr, "hid write fail (%d) \n", ret);
+        goto endret;
+    }
+
+
+    memset(buf, 0, sizeof buf);
+    resp = &buf[0];
+
+    ret = hid_read_timeout(h_hid, buf, 64, -1);
+    if(ret <= 0) {
+        fprintf(stderr, "read timeout (%d) \n", ret);
+        goto endret;
+    }
+
+
+    printf("reponse b[6] = 0x%x \n", resp[6]);
+    if(resp[6] != 17) {
+        ret = -1;
+        goto endret;
+    }
+
+    respd = &buf[7];
+
+    if(memcmp(nonce, &respd[0], 8) != 0) {
+        fprintf(stderr, "invalid nonce !!! \n");
+        return -1;
+    }
+
+    memcpy(&h_info->cid,  &respd[8], 4);
+    printf("cid : 0x%x \n", h_info->cid);
+
+    h_info->protocol_v = respd[12];
+    h_info->major_v = respd[13];
+    h_info->minor_v = respd[14];
+    h_info->build_v = respd[15];
+    h_info->capa_flags = respd[16];
+
+    printf("protocol version : 0x%x \n", h_info->protocol_v);
+    printf("major version : 0x%x \n", h_info->major_v);
+    printf("minor version : 0x%x \n", h_info->minor_v);
+    printf("build version : 0x%x \n", h_info->build_v);
+    printf("capabilities flags : 0x%x \n", h_info->capa_flags);
+    
+endret:
+
+    return ret;
+
+}
+
 int fido_hid_status(void)
 {
     return gn_hidstatus;
@@ -42,6 +125,7 @@ int fido_hid_init(void)
 endret:
     return ret;
 }
+
 
 
 
@@ -116,6 +200,7 @@ void* fido_hid_open(uint16_t vid, uint16_t pid, void *attribute)
         fprintf(stderr, "Unable to open device \n");
         goto endret;
     }
+
 
     return h;
 
