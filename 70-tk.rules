@@ -1,0 +1,4 @@
+ACTION!="add|change", GOTO="fido_end"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="311f", ATTRS{idProduct}=="4a1a", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="311f", ATTRS{idProduct}=="4a2a", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+LABEL="fido_end"
