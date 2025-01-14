@@ -16,8 +16,159 @@
 #define false 0 
 #endif
 
+#define HID_PACKET              (0x80)
+#define HID_CTAP_PING           (HID_PACKET | 0x01)
+#define HID_CTAP_MSG            (HID_PACKET | 0x03)
+#define HID_CTAP_LOCK           (HID_PACKET | 0x04)
+#define HID_CTAP_INIT           (HID_PACKET | 0x06)
+#define HID_CTAP_WINK           (HID_PACKET | 0x08)
+#define HID_CTAP_CBOR           (HID_PACKET | 0x10)
+#define HID_CTAP_CANCEL         (HID_PACKET | 0x11)
+#define HID_CTAP_KEEPALIVE      (HID_PACKET | 0x3B)
+#define HID_CTAP_ERROR          (HID_PACKET | 0x3F)
+
+#define HID_USER_UAF            (HID_PACKET | 0x41)
+#define HID_USER_FINGERPRINT    (HID_PACKET | 0x51)
+#define HID_USER_UTIL           (HID_PACKET | 0x52)
+#define HID_USER_BULK           (HID_PACKET | 0x53)
+#define HID_USER_OTP            (HID_PACKET | 0x55)
+
+#define HID_PACKET_MAX          (64)
+#define HID_PACKET1_DATA_SIZE   (57)
+#define HID_PACKET2_DATA_SIZE   (59)
+#define HID_SEQUENCE_MAX        (127)
+#define HID_BCNT_MAX            (7550) // (HID_PACKET_MAX - 7) + (HID_PACKET_MAX - 5) * HID_SEQUENCE_MAX
+#define HID_TIMEOUT             (5000)
+#define HID_TIMEOUT_INFINITE    (INFINITE)
+
+#define CAPABILITY_WINK    (0x01) // If set to 1, authenticator implements CTAPHID_WINK function
+#define CAPABILITY_CBOR    (0x04) // If set to 1, authenticator implements CTAPHID_CBOR function 
+#define CAPABILITY_NMSG    (0x08) // If set to 1, authenticator DOES NOT implement CTAPHID_MSG function
 
 static bool gn_hidstatus = true;
+
+
+static int fido_hid_devicereq(hid_device *handle, uint8_t cmd, const uint8_t *message, int length, uint8_t *response)
+{
+    int ret = 0;
+
+    int leftcnt= 0;
+    int rightcnt = 0;
+    int pos = 0;
+    int recvlen = 0;
+    uint8_t reqbuf[HID_PACKET_MAX + 1] = {0, };
+    uint8_t respbuf[HID_PACKET_MAX + 1] = {0, };
+
+    int reqcnt = 1;
+    int respcnt = 0;
+
+    if (length < HID_BCNT_MAX) {
+        ret = -1;
+        fprintf(stderr, "invalid message length \n");
+        goto endret;
+    }
+
+
+    memcpy(&requf[reqcnt], &cid, 4);
+    reqcnt += 4;
+    reqbuf[reqcnt++] = cmd;
+    reqbuf[reqcnt++] = (length & 0xFF00) >> 8;
+    reqbuf[reqcnt++] = length & 0xFF;
+
+    if(message != NULL) {
+        memcpy(&reqbuf[reqcnt++], message, ((length > HID_PACKET1_DATA_SIZE) ? HID_PACKET1_DATA_SIZE : length));
+    }
+
+    ret = hid_write(handle, reqbuf, HID_PACKET_MAX +1);
+    if(ret <= 0) {
+        fprintf(stderr, "hid write fail (%ls) \n",   hid_error(handle));
+        goto endret;
+    }
+
+    pos = HID_PACKET1_DATA_SIZE;
+    leftcnt = length - HID_PACKET1_DATA_SIZE;
+    rightcnt = 0;
+
+    while ( leftcnt > 0 ) {
+        reqcnt = 5;
+        reqbuf[reqcnt++] = rightcnt;
+        memset(&reqbuf[reqcnt], &message[pos], ((leftcnt > HID_PACKET2_DATA_SIZE) ? HID_PACKET2_DATA_SIZE : left_cnt));
+        ret = hid_write(handle, reqbuf, HID_PACKET_MAX +1);
+
+        if(ret <= 0) {
+            fprintf(stderr, "hid write fail (%ls) \n",   hid_error(handle));
+            goto endret;
+        }
+
+        pos += HID_PACKET2_DATA_SIZE;
+        leftcnt -= HID_PACKET2_DATA_SIZE;
+        rightcnt++;
+    }
+
+    if( response == NULL) {
+        fprintf(stdout, " Response don't existence \n");
+        ret = 0;
+        goto endret;
+    }
+
+    // receive
+    do {
+        respcnt = 0;
+        ret = hid_read_timeout(handle, respbuf, HID_PACKET_MAX, -1);
+        if(ret <= 0) {
+            fprintf(stderr, "hid read fail (%ls) \n",   hid_error(handle));
+            goto endret;
+        }
+
+        if(memcmp(&respbuf[respcnt], &cid, 4) != 0) {
+            fprintf(stderr, "invalid cid \n");
+            ret = -1;
+            goto endret;
+        }
+
+        respcnt += 4;
+    } while(respbuf[respcnt] == HID_CTAP_KEEPALIVE);
+
+    if( respbuf[respcnt++] != cmd ) {
+        fprintf(stderr, "invalid response command \n");
+        ret = -1;
+        goto endret;
+
+    }
+
+    recvlen = respbuf[respcnt++] << 8 |  respbuf[respcnt++];
+
+    if((recvlen > HID_BCNT_MAX) || (recvlen == 0)) {
+        ret = -1;
+        goto endret;
+    }
+
+    memcpy(response, &resbuf[respcnt++], ((recvlen > HID_PACKET1_DATA_SIZE) ? HID_PACKET1_DATA_SIZE : recvlen));
+
+    pos = HID_PACKET1_DATA_SIZE;
+    leftcnt = recvlen - HID_PACKET1_DATA_SIZE;
+
+    while( leftcnt > 0 ) {
+
+        ret = hid_read_timeout(handle, respbuf, HID_PACKET_MAX, -1);
+        if(ret < 0) {
+            fprintf(stderr, "left response read fail (%ls) \n", hid_error(handle));
+            goto endret;
+        }
+
+        memcpy(&response[pos], &respbuf[5], ((leftcnt > HID_PACKET2_DATA_SIZE) ? HID_PACKET2_DATA_SIZE : leftcnt));
+
+        pos += HID_PACKET2_DATA_SIZE;
+        leftcnt -= HID_PACKET2_DATA_SIZE;
+    }
+
+
+    return recvlen;
+
+endret:
+
+    return ret;
+}
 
 
 int fido_dev_ctapinit(void *handle)
