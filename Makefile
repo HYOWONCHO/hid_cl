@@ -21,6 +21,12 @@ OBJDIR := obj
 
 
 vpath %.h ./inc
+vpath %.h ./cbor/include
+vpath %.h ./cbor/src
+vpath %.h .
+
+vpath %.c ./cbor/src
+vpath %.c ./cbor
 vpath %.c ./src
 vpath %.c .
 
@@ -28,18 +34,26 @@ vpath %.c .
 # Source 
 HID_SOURCES := $(wildcard src/*.c)
 MAIN_SOURCES := $(wildcard *.c)
+CBOR_SOURCES := $(wildcard cbor/*.c)
+CBOR_SOURCES += $(wildcard cbor/src/*.c)
+
 SOURCES := $(MAIN_SOURCES) \
-		   $(HID_SOURCES)
+		   $(HID_SOURCES) \
+		   $(CBOR_SOURCES)
 
 SOURCES := $(strip $(notdir $(SOURCES)))
 
 #Header
 HEADERS := -I. \
-		  -I ./inc
+		  -I ./inc \
+		  -I ./cbor/include -I ./cbor/src 
+
 
 HEADERS := $(strip $(HEADERS))
 
 OBJS  = $(patsubst %.c, $(OBJDIR)/%.o,$(SOURCES))
+
+CFLAGS = $(strip $(HEADERS))
 
 LIBPATH := 
 LIBS := -lhidapi-libusb
