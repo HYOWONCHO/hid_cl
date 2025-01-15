@@ -204,7 +204,7 @@ static int fido_dev_hid_recv(void *priv)
             return ret;
         }
 
-        if(memcmp(&temp[0], tlv->cid, 4) != 0) {
+        if(memcmp(&temp[0], &tlv->cid, 4) != 0) {
             err_printf("invalid cid");
             ERR_JUMP_VAL(-1);
         }
