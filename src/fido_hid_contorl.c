@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <wchar.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 #include "../inc/fido_hid.h"
 
@@ -48,7 +50,7 @@
 static bool gn_hidstatus = true;
 
 
-static int fido_hid_devicereq(hid_device *handle, uint8_t cmd, const uint8_t *message, int length, uint8_t *response)
+static int fido_hid_devicereq(hid_device *handle, uint32_t cid, uint8_t cmd, const uint8_t *message, int length, uint8_t *response)
 {
     int ret = 0;
 
@@ -69,7 +71,7 @@ static int fido_hid_devicereq(hid_device *handle, uint8_t cmd, const uint8_t *me
     }
 
 
-    memcpy(&requf[reqcnt], &cid, 4);
+    memcpy(&reqbuf[reqcnt], &cid, 4);
     reqcnt += 4;
     reqbuf[reqcnt++] = cmd;
     reqbuf[reqcnt++] = (length & 0xFF00) >> 8;
@@ -92,7 +94,8 @@ static int fido_hid_devicereq(hid_device *handle, uint8_t cmd, const uint8_t *me
     while ( leftcnt > 0 ) {
         reqcnt = 5;
         reqbuf[reqcnt++] = rightcnt;
-        memset(&reqbuf[reqcnt], &message[pos], ((leftcnt > HID_PACKET2_DATA_SIZE) ? HID_PACKET2_DATA_SIZE : left_cnt));
+        memset(&reqbuf[reqcnt], 0, HID_PACKET2_DATA_SIZE);
+        memcpy(&reqbuf[reqcnt], &message[pos], ((leftcnt > HID_PACKET2_DATA_SIZE) ? HID_PACKET2_DATA_SIZE : leftcnt));
         ret = hid_write(handle, reqbuf, HID_PACKET_MAX +1);
 
         if(ret <= 0) {
@@ -143,7 +146,7 @@ static int fido_hid_devicereq(hid_device *handle, uint8_t cmd, const uint8_t *me
         goto endret;
     }
 
-    memcpy(response, &resbuf[respcnt++], ((recvlen > HID_PACKET1_DATA_SIZE) ? HID_PACKET1_DATA_SIZE : recvlen));
+    memcpy(response, &respbuf[respcnt++], ((recvlen > HID_PACKET1_DATA_SIZE) ? HID_PACKET1_DATA_SIZE : recvlen));
 
     pos = HID_PACKET1_DATA_SIZE;
     leftcnt = recvlen - HID_PACKET1_DATA_SIZE;
@@ -185,7 +188,7 @@ int fido_dev_ctapinit(void *handle)
     hid_device *h_hid;
 
 
-    h_info = (fido_hid_info_t *)handle;
+    h_info = (fido_device_info_t *)handle;
     h_hid = (hid_device *)h_info->handle;
 
     // generate nonce 
