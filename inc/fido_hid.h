@@ -5,6 +5,15 @@
 #define     MAX_STR     255
 
 
+typedef struct _hid_ctlv_t {
+    void *handle;
+    uint32_t cid;   /* !< FIDO channel ID */
+    uint16_t tag;  /* !< FIDO command */
+    uint32_t length;
+    uint8_t  message[1];
+}__attribute__((packed)) hid_ctlv_t;
+
+
 typedef struct _fido_device_info_t {
     void *handle;
     uint32_t cid;
@@ -13,7 +22,7 @@ typedef struct _fido_device_info_t {
     uint8_t minor_v;
     uint8_t build_v;
     uint8_t capa_flags;
-}fido_device_info_t;
+}__attribute__((packed)) fido_device_info_t;
 
 
 typedef struct _fido_hid_info_t {
@@ -23,7 +32,7 @@ typedef struct _fido_hid_info_t {
     wchar_t str_pt[MAX_STR];            //< Product string 
     wchar_t str_sn[MAX_STR];
     wchar_t str_is[MAX_STR];            //< Indexed String
-}fido_hid_info_t;
+}__attribute__((packed)) fido_hid_info_t;
 
 
 

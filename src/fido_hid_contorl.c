@@ -1,13 +1,12 @@
 #include <hidapi/hidapi.h>
-#include <stdio.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <wchar.h>
-#include <string.h>
 #include <time.h>
 #include <stdlib.h>
 
+#include "debugs.h"
 #include "../inc/fido_hid.h"
 
 #ifndef true
@@ -168,6 +167,81 @@ static int fido_hid_devicereq(hid_device *handle, uint32_t cid, uint8_t cmd, con
 
     return recvlen;
 
+endret:
+
+    return ret;
+}
+
+static int fido_dev_hid_recv(void *priv)
+{
+    int ret = -1;
+
+    int pos = 0;
+    int leftcnt = 0;
+    int recvlen = 0;
+
+    uint8_t temp[65] = { [0 ... 64] = 0x00 };
+
+    hid_ctlv_t *tlv = NULL;
+
+    tlv = (hid_ctlv_t *)priv;
+
+    if(tlv == NULL) {
+        fprintf(stderr, "invalid pointer \n");
+        goto endret;
+    }
+
+    if(tlv->handle == NULL) {
+        fprintf(stderr, "invalid pointer \n");
+        goto endret;
+    }
+
+    do {
+        ret = hid_read_timeout(tlv->handle, temp, HID_PACKET_MAX, 0);
+        if(ret <= 0)  {
+            fprintf(stderr, "%s read timeout (%ls) \n", 
+                    __func__, hid_error(tlv->handle));
+            return ret;
+        }
+
+        if(memcmp(&temp[0], tlv->cid, 4) != 0) {
+            err_printf("invalid cid");
+            ERR_JUMP_VAL(-1);
+        }
+    } while( temp[4]  == HID_CTAP_KEEPALIVE );
+
+    recvlen = temp[5] << 8 | temp[6];
+    if(recvlen > HID_BCNT_MAX)  {
+        err_printf("invalid receive length (%d)", recvlen);
+        ERR_JUMP_VAL(-1);
+    }
+
+    if(recvlen == 0) {
+        info_printf("Nothing any more the received data");
+        ERR_JUMP_VAL(0);
+    }
+
+    memcpy(&tlv->message[0], &temp[7], ((recvlen > HID_PACKET1_DATA_SIZE)?HID_PACKET1_DATA_SIZE:recvlen));
+
+    pos = HID_PACKET1_DATA_SIZE;
+    leftcnt = recvlen - HID_PACKET1_DATA_SIZE;
+
+
+    while ( leftcnt > 0 ){
+        ret = hid_read_timeout(tlv->handle, temp, HID_PACKET_MAX, -1);
+        if(ret < 0) {
+            err_printf("hid read fail (%ls)", hid_error(tlv->handle));
+            ERR_JUMP_VAL(-1);
+        }
+
+        memcpy(&tlv->message[pos], &temp[5], 
+                ((leftcnt > HID_PACKET2_DATA_SIZE)?HID_PACKET2_DATA_SIZE : leftcnt));
+
+        pos += HID_PACKET2_DATA_SIZE;
+        leftcnt -= HID_PACKET2_DATA_SIZE;
+    }
+
+    ret = recvlen;
 endret:
 
     return ret;

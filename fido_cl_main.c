@@ -1,11 +1,11 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <hidapi/hidapi.h>
 
+#include "debugs.h"
 #include "inc/fido_hid.h"
 
-#include <hidapi/hidapi.h>
 
 
 #define G310_HID_VID    0x311F
@@ -26,6 +26,23 @@ int main(int argc, char *argv[])
     fido_device_info_t dev_info;
     fido_hid_info_t hid_info;
 
+    uint8_t tests[16] = { [0 ... 8] = 0x55, };
+    hid_ctlv_t hh;
+#if 0
+    //hh.message[0] = tests;
+    //memcpy(hh.message, tests, 16);
+    //printf("hhmessage : %p , tests :%p \n", hh.message, tests);
+
+    for(int x = 0; x < 16; x++) {
+        printf("(%p) : 0x%x , (%p) : 0x%x \n", 
+                &hh.message[x], hh.message[x],
+                &tests[x], tests[x]);
+
+
+    printf("\n");
+#endif
+   // ERR_JUMP_VAL(7);
+
     if((ret = fido_hid_init()) != 0) {
         printf("fiod_hid_init() failed (%d) \n", ret);
         goto endret;
@@ -40,6 +57,7 @@ int main(int argc, char *argv[])
     }
 
 
+    // Get the HID devce  informatoin 
     hid_info.handle = handle;
     hid_info.dev_info = &dev_info;
 
@@ -47,10 +65,12 @@ int main(int argc, char *argv[])
 
     fido_hid_info((void *)&hid_info);
 
+    // Transmit and request the CTAP init
     dev_info.handle = handle;
     fido_dev_ctapinit((void *)&dev_info);
 
 endret:
+    //err_printf("end return value : %d", ret);
 
     //fido_hid_deinit();
     return ret;
